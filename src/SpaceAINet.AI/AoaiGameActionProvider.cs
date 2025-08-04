@@ -269,6 +269,9 @@ Sample JSON output:
         // Remove code block markers
         llmResponse = llmResponse.Replace("```json", "").Replace("```", "");
 
+        // First, aggressively clean problematic game patterns that break JSON
+        llmResponse = CleanGamePatternsFromResponse(llmResponse);
+
         var lines = llmResponse.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         int start = Array.FindIndex(lines, l => l.TrimStart().StartsWith("{"));
         int end = Array.FindLastIndex(lines, l => l.TrimEnd().EndsWith("}"));
@@ -283,6 +286,9 @@ Sample JSON output:
         {
             json = llmResponse.Trim();
         }
+
+        // Additional cleaning for JSON content
+        json = CleanJsonContent(json);
 
         // Find the last complete JSON brace
         int lastBrace = json.LastIndexOf('}');
@@ -304,6 +310,100 @@ Sample JSON output:
         }
 
         return json;
+    }
+
+    private string CleanGamePatternsFromResponse(string response)
+    {
+        // Replace problematic game patterns that cause JSON parsing issues
+        var replacements = new Dictionary<string, string>
+        {
+            { "'/O\\'", "'enemy'" },
+            { "\"/O\\\"", "\"enemy\"" },
+            { "'><'", "'enemy'" },
+            { "\"><\"", "\"enemy\"" },
+            { "'oo'", "'enemy'" },
+            { "\"oo\"", "\"enemy\"" },
+            { "'/\\'", "'enemy'" },
+            { "\"/\\\"", "\"enemy\"" },
+            { "'\\O/'", "'enemy'" },
+            { "\"\\O/\"", "\"enemy\"" },
+            { "\\O\\", "enemy" },
+            { "/O\\", "enemy" },
+            { "\\", "" }, // Remove standalone backslashes
+        };
+
+        foreach (var replacement in replacements)
+        {
+            response = response.Replace(replacement.Key, replacement.Value);
+        }
+
+        return response;
+    }
+
+    private string CleanJsonContent(string json)
+    {
+        // Clean JSON string values to remove problematic characters
+        var result = new StringBuilder();
+        bool insideString = false;
+        bool escapeNext = false;
+
+        for (int i = 0; i < json.Length; i++)
+        {
+            char c = json[i];
+
+            if (escapeNext)
+            {
+                // Skip this character if it's an invalid escape
+                escapeNext = false;
+                continue;
+            }
+
+            if (c == '"' && !escapeNext)
+            {
+                insideString = !insideString;
+                result.Append(c);
+            }
+            else if (insideString && c == '\\')
+            {
+                // Check if this is a valid escape sequence
+                if (i + 1 < json.Length)
+                {
+                    char nextChar = json[i + 1];
+                    if (nextChar == '"' || nextChar == '\\' || nextChar == '/' ||
+                        nextChar == 'b' || nextChar == 'f' || nextChar == 'n' ||
+                        nextChar == 'r' || nextChar == 't' || nextChar == 'u')
+                    {
+                        result.Append(c);
+                    }
+                    else
+                    {
+                        // Invalid escape, skip it
+                        escapeNext = true;
+                    }
+                }
+                else
+                {
+                    // Backslash at end, skip it
+                }
+            }
+            else if (insideString)
+            {
+                // Inside string, only allow safe characters
+                if (char.IsLetterOrDigit(c) || c == ' ' || c == '.' || c == '-' ||
+                    c == '_' || c == ',' || c == '\'' || c == ':' || c == '!')
+                {
+                    result.Append(c);
+                }
+                // Skip other potentially problematic characters
+            }
+            else
+            {
+                // Outside string, keep JSON structure characters
+                result.Append(c);
+            }
+        }
+
+        return result.ToString();
     }
 
     private GameActionResult AnalyzeWithHeuristics(string response)
