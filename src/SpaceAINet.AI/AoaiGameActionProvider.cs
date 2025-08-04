@@ -15,20 +15,36 @@ public class AoaiGameActionProvider
 
     public AoaiGameActionProvider()
     {
-        // Load configuration from user secrets
-        var builder = new ConfigurationBuilder()
-            .AddUserSecrets<AoaiGameActionProvider>();
+        try
+        {
+            // Load configuration from user secrets
+            var builder = new ConfigurationBuilder()
+                .AddUserSecrets<AoaiGameActionProvider>();
 
-        _configuration = builder.Build();
-        // Initialize the chat client with Azure OpenAI
-        var endpoint = new Uri(_configuration["AZURE_OPENAI_ENDPOINT"]);
-        var apiKey = _configuration["AZURE_OPENAI_APIKEY"];
-        var deploymentName = _configuration["AZURE_OPENAI_MODEL"];
+            _configuration = builder.Build();
 
-        AzureOpenAIClient azureClient = new(
-                        endpoint,
-                        new AzureKeyCredential(apiKey));
-        _chatClient = azureClient.GetChatClient(deploymentName);
+            // Initialize the chat client with Azure OpenAI
+            var endpoint = _configuration["AZURE_OPENAI_ENDPOINT"];
+            var apiKey = _configuration["AZURE_OPENAI_APIKEY"];
+            var deploymentName = _configuration["AZURE_OPENAI_MODEL"];
+
+            // Validate configuration
+            if (string.IsNullOrEmpty(endpoint))
+                throw new InvalidOperationException("AZURE_OPENAI_ENDPOINT is not configured in user secrets");
+            if (string.IsNullOrEmpty(apiKey))
+                throw new InvalidOperationException("AZURE_OPENAI_APIKEY is not configured in user secrets");
+            if (string.IsNullOrEmpty(deploymentName))
+                throw new InvalidOperationException("AZURE_OPENAI_MODEL is not configured in user secrets");
+
+            AzureOpenAIClient azureClient = new(
+                            new Uri(endpoint),
+                            new AzureKeyCredential(apiKey));
+            _chatClient = azureClient.GetChatClient(deploymentName);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to initialize Azure OpenAI client: {ex.Message}", ex);
+        }
     }
 
     public async Task<GameActionResult> AnalyzeFrameAsync(byte[] frame1, byte[] frame2, string lastAction)
@@ -37,17 +53,16 @@ public class AoaiGameActionProvider
         {
             _lastAction = lastAction;
 
-            // Convert frames to base64 for analysis
-            var frame1Base64 = Convert.ToBase64String(frame1);
-            var frame2Base64 = Convert.ToBase64String(frame2);
+            // Convert frame data to a more readable format for AI analysis
+            var gameState = ExtractGameStateFromFrame(frame2);
 
             // Create the prompt for AI analysis
-            var prompt = CreateGameAnalysisPrompt(frame1Base64, frame2Base64, lastAction);
+            var prompt = CreateGameAnalysisPrompt(gameState, lastAction);
 
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are an AI playing a Space Invaders-style game. Analyze the game state and respond with the best action."),
+                new SystemChatMessage("You are an expert Space Invaders player. Your goal: survive and win. Prioritize dodging bullets over shooting. Respond with precise JSON only."),
                 new UserChatMessage(prompt)
             };
 
@@ -68,40 +83,75 @@ public class AoaiGameActionProvider
         }
     }
 
-    private string CreateGameAnalysisPrompt(string frame1Base64, string frame2Base64, string lastAction)
+    private string ExtractGameStateFromFrame(byte[] frameData)
     {
-        return $@"
-You are an AI playing a Space Invaders-style game called Space.AI.NET().
+        try
+        {
+            var gameState = new StringBuilder();
 
-Game Rules:
-- You control a player character 'A' at the bottom of the screen
-- Enemies are represented by patterns like '><', 'oo', and '/O\'
-- Player bullets are '^' and enemy bullets are 'v'
-- You can move left, right, shoot, or wait
-- Goal: Destroy all enemies while avoiding enemy bullets
+            // Extract meaningful game elements from the frame
+            // Frame format: character byte + color byte pairs
+            for (int i = 0; i < frameData.Length - 1; i += 2)
+            {
+                char character = (char)frameData[i];
 
-Current game state:
-- Previous frame: {frame1Base64}
-- Current frame: {frame2Base64}
-- Last action taken: {lastAction}
+                // Only include meaningful game characters
+                if (character == 'A' || character == '^' || character == 'v' ||
+                    character == '>' || character == '<' || character == 'o' ||
+                    character == '/' || character == '\\' || character == 'O')
+                {
+                    gameState.Append(character);
+                }
+                else if (character == ' ' && gameState.Length > 0 && gameState[gameState.Length - 1] != ' ')
+                {
+                    gameState.Append(' ');
+                }
+            }
 
-Analyze the game state and determine the best next action.
+            return gameState.ToString().Trim();
+        }
+        catch
+        {
+            return "Unable to parse game state";
+        }
+    }
 
-Respond with a JSON object in this exact format:
+    private string CreateGameAnalysisPrompt(string gameState, string lastAction)
+    {
+        return $@"You are playing Space Invaders. You must survive and destroy all enemies.
+
+GAME LAYOUT:
+- Player 'A': You (bottom of screen)
+- Enemies: '><', 'oo', '/O\' patterns (top area)
+- Player bullets: '^' (moving up)
+- Enemy bullets: 'v' (moving down toward you)
+- Borders: Box-drawing characters
+
+CRITICAL PRIORITIES (in order):
+1. DODGE enemy bullets 'v' immediately - survival is #1 priority
+2. SHOOT enemies when you have clear shots
+3. POSITION yourself for optimal shooting angles
+4. AVOID moving into bullet paths
+
+CURRENT GAME STATE:
+{gameState}
+
+Last Action: {lastAction}
+
+DECISION MAKING:
+- If enemy bullet 'v' is above you: MOVE away immediately
+- If no immediate threats: SHOOT at enemies
+- If enemies are moving toward your position: REPOSITION
+- If you just shot: MOVE to avoid return fire
+
+Respond ONLY with valid JSON:
 {{
-    ""action"": ""[MoveLeft|MoveRight|Shoot|Wait]"",
-    ""reasoning"": ""Brief explanation of why this action was chosen"",
-    ""confidence"": 0.85
+    ""action"": ""MoveLeft"" | ""MoveRight"" | ""Shoot"" | ""Wait"",
+    ""reasoning"": ""1-2 sentence tactical explanation"",
+    ""confidence"": 0.75
 }}
 
-Consider:
-1. Enemy positions and movement patterns
-2. Incoming enemy bullets to avoid
-3. Optimal shooting opportunities
-4. Player position relative to threats
-5. Previous action effectiveness
-
-Choose the action that maximizes survival and enemy destruction.";
+THINK: What's the immediate threat? What's the best counter-action?";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -194,5 +244,28 @@ Choose the action that maximizes survival and enemy destruction.";
             Reasoning = "Heuristic: Default to waiting",
             Confidence = 0.3f
         };
+    }
+
+    /// <summary>
+    /// Tests if the Azure OpenAI connection is working properly
+    /// </summary>
+    public async Task<bool> TestConnectionAsync()
+    {
+        try
+        {
+            var messages = new ChatMessage[]
+            {
+                new SystemChatMessage("You are a test assistant."),
+                new UserChatMessage("Respond with exactly: TEST_OK")
+            };
+
+            var response = await _chatClient.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text ?? "";
+            return content.Contains("TEST_OK");
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

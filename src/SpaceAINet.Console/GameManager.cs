@@ -62,7 +62,25 @@ public class GameManager
             try
             {
                 _aiProvider = new AoaiGameActionProvider();
-                System.Console.Title = "Space.AI.NET() - AI Mode Enabled";
+                System.Console.Title = "Space.AI.NET() - AI Mode Initializing...";
+
+                // Test the connection
+                System.Console.WriteLine("Testing Azure OpenAI connection...");
+                var connectionTest = _aiProvider.TestConnectionAsync().GetAwaiter().GetResult();
+
+                if (connectionTest)
+                {
+                    System.Console.WriteLine("✓ Azure OpenAI connection successful!");
+                    System.Console.Title = "Space.AI.NET() - AI Mode Ready";
+                }
+                else
+                {
+                    System.Console.WriteLine("✗ Azure OpenAI connection failed - using fallback heuristics");
+                    System.Console.Title = "Space.AI.NET() - AI Mode (Fallback)";
+                }
+
+                System.Console.WriteLine("Press any key to start the game...");
+                System.Console.ReadKey();
             }
             catch (Exception ex)
             {
@@ -183,7 +201,19 @@ public class GameManager
         }
         catch (Exception ex)
         {
-            System.Console.Title = $"Space.AI.NET() - AI Error: {ex.Message}";
+            // Log error to a more visible place and continue the game
+            var errorMsg = $"AI Error: {ex.Message}";
+            System.Console.Title = errorMsg;
+
+            // Also try to log to console for debugging
+            try
+            {
+                var originalPos = System.Console.GetCursorPosition();
+                System.Console.SetCursorPosition(0, 0);
+                System.Console.WriteLine($"DEBUG: {errorMsg}");
+                System.Console.SetCursorPosition(originalPos.Left, originalPos.Top);
+            }
+            catch { /* Ignore positioning errors */ }
         }
     }
 
