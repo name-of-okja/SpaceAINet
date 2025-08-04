@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceAINet.Console", "src\SpaceAINet.Console\SpaceAINet.Console.csproj", "{A196E30A-00B5-4C9E-9474-F0B3501CE51C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceAINet.AI", "src\SpaceAINet.AI\SpaceAINet.AI.csproj", "{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,11 +31,24 @@ Global
 		{A196E30A-00B5-4C9E-9474-F0B3501CE51C}.Release|x64.Build.0 = Release|Any CPU
 		{A196E30A-00B5-4C9E-9474-F0B3501CE51C}.Release|x86.ActiveCfg = Release|Any CPU
 		{A196E30A-00B5-4C9E-9474-F0B3501CE51C}.Release|x86.Build.0 = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|x64.Build.0 = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Debug|x86.Build.0 = Debug|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|x64.ActiveCfg = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|x64.Build.0 = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|x86.ActiveCfg = Release|Any CPU
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A196E30A-00B5-4C9E-9474-F0B3501CE51C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{2ACBD474-9AFB-4ECC-A993-7FDDD553C31C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

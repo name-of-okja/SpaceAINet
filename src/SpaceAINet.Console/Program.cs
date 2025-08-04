@@ -7,11 +7,13 @@ Console.CursorVisible = false;
 // Show start screen
 StartScreen.Show();
 
-// Read user input for speed selection
-Console.SetCursorPosition(4, 20);
+// Read user input for speed selection - use safe position
+int inputLine = Math.Min(24, Console.WindowHeight - 2);
+Console.SetCursorPosition(4, inputLine);
 Console.Write("Enter your choice: ");
 
 int gameSpeed = 1; // Default to slow
+bool aiMode = false; // Default to manual
 
 while (true)
 {
@@ -19,7 +21,7 @@ while (true)
 
     if (keyInfo.Key == ConsoleKey.Enter)
     {
-        // Use default (slow)
+        // Use defaults (slow, manual)
         break;
     }
     else if (keyInfo.KeyChar == '1')
@@ -37,13 +39,23 @@ while (true)
         gameSpeed = 3; // Fast
         break;
     }
+    else if (keyInfo.KeyChar == 'A' || keyInfo.KeyChar == 'a')
+    {
+        aiMode = true;
+        break;
+    }
+    else if (keyInfo.KeyChar == 'M' || keyInfo.KeyChar == 'm')
+    {
+        aiMode = false;
+        break;
+    }
 }
 
 // Clear console and start game
 Console.Clear();
 
 // Run the game
-var gameManager = new GameManager(gameSpeed);
+var gameManager = new GameManager(gameSpeed, aiMode);
 gameManager.RunGameLoop();
 
 Console.ResetColor();

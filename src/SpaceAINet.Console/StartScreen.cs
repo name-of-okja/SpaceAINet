@@ -9,6 +9,15 @@ public static class StartScreen
         int windowWidth = System.Console.WindowWidth;
         int windowHeight = System.Console.WindowHeight;
 
+        // Ensure we have enough space for the UI
+        if (windowHeight < 25)
+        {
+            System.Console.WriteLine("Please resize your console window to at least 25 lines high.");
+            System.Console.WriteLine("Press any key to continue...");
+            System.Console.ReadKey();
+            return;
+        }
+
         // Display title centered
         string title = "Space.AI.NET()";
         int titleX = (windowWidth - title.Length) / 2;
@@ -60,6 +69,15 @@ public static class StartScreen
 
         System.Console.SetCursorPosition(4, 18);
         System.Console.WriteLine("Press ENTER for default");
+
+        System.Console.SetCursorPosition(4, 20);
+        System.Console.WriteLine("Game Mode:");
+
+        System.Console.SetCursorPosition(4, 21);
+        System.Console.WriteLine("[A] AI Mode (requires Azure OpenAI setup)");
+
+        System.Console.SetCursorPosition(4, 22);
+        System.Console.WriteLine("[M] Manual Mode (default)");
 
         System.Console.ResetColor();
     }
