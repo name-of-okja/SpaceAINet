@@ -62,7 +62,7 @@ public class AoaiGameActionProvider
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are a Space Invaders expert! CRITICAL: Always move TOWARD enemies, never away from them! Analyze the game state carefully and chase the enemies to destroy them!"),
+                new SystemChatMessage("You are an AGGRESSIVE SPACE WARRIOR! ALWAYS ATTACK! SHOOT constantly! Move toward enemies to kill them! NEVER retreat! NEVER wait! Only three actions: MoveLeft, MoveRight, Shoot!"),
                 new UserChatMessage(prompt)
             };
 
@@ -118,50 +118,43 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"You are a SPACE INVADERS EXPERT! Your ONLY mission: DESTROY ALL ENEMIES!
+        return $@"SPACE INVADERS GAME - BE AGGRESSIVE!
 
-CRITICAL RULES:
-1. ANALYZE WHERE ENEMIES ARE located in the game state
-2. MOVE TOWARD enemies to get closer to them
-3. SHOOT constantly while moving toward enemies
-4. NEVER move away from enemies - always chase them!
+GAME STATE: {gameState}
+LAST ACTION: {lastAction}
 
-GAME STATE ANALYSIS:
-{gameState}
-Last action: {lastAction}
+YOUR MISSION: ATTACK ATTACK ATTACK! NEVER STOP ATTACKING!
 
-GAME ELEMENTS:
-- 'A' = YOUR SHIP (this is you!)
-- '><' = ENEMY SHIP (destroy this!)
-- 'oo' = ENEMY SHIP (destroy this!)  
-- '/O\\' = ENEMY SHIP (destroy this!)
-- 'v' = Enemy bullet (ignore these)
-- '^' = Your bullet
+SIMPLE RULES:
+1. ALWAYS SHOOT! Shooting is most important!
+2. If you see enemies ('><' or 'oo' or '/O\\'), MOVE TOWARD them!
+3. NEVER move away from enemies!
+4. NEVER wait or do nothing!
 
-MOVEMENT STRATEGY:
-- Look at the game state above
-- Find where the enemy ships ('><', 'oo', '/O\\') are positioned
-- If enemies appear to the LEFT of your ship 'A': Choose ""MoveLeft""
-- If enemies appear to the RIGHT of your ship 'A': Choose ""MoveRight""  
-- If enemies are directly above or below: Choose ""Shoot""
-- ALWAYS move TOWARD the enemies, NEVER away from them!
+DIRECTION RULES:
+- If you see enemy symbols ('><', 'oo', '/O\\') in the game state:
+  * Count how many are on the left side
+  * Count how many are on the right side  
+  * Move toward the side with MORE enemies!
+- If equal enemies on both sides: SHOOT!
+- If no clear direction: SHOOT!
 
-DECISION PROCESS:
-1. Locate your ship 'A' in the game state
-2. Locate enemy ships ('><', 'oo', '/O\\') in the game state  
-3. Determine which direction has MORE enemies
-4. Move in that direction to get closer to enemies
-5. Shoot while moving toward them
+PRIORITY ORDER:
+1st: SHOOT (most important action!)
+2nd: MoveLeft (if more enemies are on left)
+3rd: MoveRight (if more enemies are on right)
+
+NEVER CHOOSE: Wait, Stop, Retreat
 
 EXAMPLES:
-- If game state shows enemies on left side: ""MoveLeft"" to chase them
-- If game state shows enemies on right side: ""MoveRight"" to chase them
-- Always explain which enemies you're chasing and why
+{{ ""action"": ""Shoot"", ""reasoning"": ""Attacking enemies with bullets!"" }}
+{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left to chase enemies!"" }}
+{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right to chase enemies!"" }}
 
-Be aggressive! Chase the enemies! Never retreat!
+BE AGGRESSIVE! ATTACK! SHOOT! MOVE TOWARD ENEMIES!
 
-Output format: JSON with ""action"" and ""reasoning"" fields.
-Actions: MoveLeft, MoveRight, Shoot";
+Available actions: MoveLeft, MoveRight, Shoot
+Output JSON with 'action' and 'reasoning' fields only.";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -429,38 +422,38 @@ Actions: MoveLeft, MoveRight, Shoot";
 
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // Aggressive heuristics - prioritize movement toward enemies
+        // ULTRA AGGRESSIVE - always shoot by default!
         var lowerResponse = response.ToLower();
 
-        // Look for movement keywords
-        if (lowerResponse.Contains("left") || lowerResponse.Contains("moveleft") ||
-            lowerResponse.Contains("chase") && lowerResponse.Contains("left"))
+        // Only move if explicitly mentioned, otherwise SHOOT!
+        if (lowerResponse.Contains("moveleft") || lowerResponse.Contains("move left") ||
+            (lowerResponse.Contains("left") && lowerResponse.Contains("chase")))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveLeft,
-                Reasoning = "Heuristic: Moving left to chase enemies",
-                Confidence = 0.8f
+                Reasoning = "Heuristic: Moving left to attack enemies",
+                Confidence = 0.9f
             };
         }
 
-        if (lowerResponse.Contains("right") || lowerResponse.Contains("moveright") ||
-            lowerResponse.Contains("chase") && lowerResponse.Contains("right"))
+        if (lowerResponse.Contains("moveright") || lowerResponse.Contains("move right") ||
+            (lowerResponse.Contains("right") && lowerResponse.Contains("chase")))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveRight,
-                Reasoning = "Heuristic: Moving right to chase enemies",
-                Confidence = 0.8f
+                Reasoning = "Heuristic: Moving right to attack enemies",
+                Confidence = 0.9f
             };
         }
 
-        // Default to aggressive shooting
+        // DEFAULT: ALWAYS SHOOT! Be aggressive!
         return new GameActionResult
         {
             Action = GameAction.Shoot,
-            Reasoning = "Heuristic: Aggressive shooting at enemies",
-            Confidence = 0.7f
+            Reasoning = "Heuristic: ATTACK! Shooting at enemies!",
+            Confidence = 0.95f
         };
     }
 
