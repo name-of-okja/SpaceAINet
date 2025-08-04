@@ -62,7 +62,7 @@ public class AoaiGameActionProvider
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are an expert Space Invaders player. Your goal: survive and win. Prioritize dodging bullets over shooting. Respond with precise JSON only."),
+                new SystemChatMessage("You are a MOBILE WARRIOR in Space Invaders! Hunt enemies by moving constantly. Never stay still - move, shoot, move, shoot! Chase your targets!"),
                 new UserChatMessage(prompt)
             };
 
@@ -118,40 +118,42 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"You are playing Space Invaders. You must survive and destroy all enemies.
+        return $@"You are a HUNTER in Space Invaders! SEEK AND DESTROY!
 
-GAME LAYOUT:
-- Player 'A': You (bottom of screen)
-- Enemies: '><', 'oo', '/O\' patterns (top area)
-- Player bullets: '^' (moving up)
-- Enemy bullets: 'v' (moving down toward you)
-- Borders: Box-drawing characters
+GAME STATE: {gameState}
+LAST ACTION: {lastAction}
 
-CRITICAL PRIORITIES (in order):
-1. DODGE enemy bullets 'v' immediately - survival is #1 priority
-2. SHOOT enemies when you have clear shots
-3. POSITION yourself for optimal shooting angles
-4. AVOID moving into bullet paths
+YOUR MISSION: Hunt down enemies by moving and shooting!
 
-CURRENT GAME STATE:
-{gameState}
+ELEMENTS:
+- 'A' = You (the hunter)
+- '><', 'oo', '/O\' = Enemy targets to hunt
+- 'v' = Enemy bullets (dodge these!)
+- '^' = Your bullets
 
-Last Action: {lastAction}
+HUNTING STRATEGY:
+1. MOVE toward enemies to get better shots
+2. SHOOT while moving for maximum damage  
+3. CHANGE POSITIONS frequently - don't stay still!
+4. Only dodge 'v' bullets when they're directly above you
+5. After dodging, immediately MOVE to a new attack position
 
-DECISION MAKING:
-- If enemy bullet 'v' is above you: MOVE away immediately
-- If no immediate threats: SHOOT at enemies
-- If enemies are moving toward your position: REPOSITION
-- If you just shot: MOVE to avoid return fire
+TACTICAL PRIORITIES:
+- If enemies are on the LEFT: Move LEFT and shoot
+- If enemies are on the RIGHT: Move RIGHT and shoot  
+- If enemies are spread out: Move to center and shoot
+- If last action was Shoot: MOVE to new position
+- If last action was Move: SHOOT from new position
+- Never stay in the same spot - keep hunting!
 
-Respond ONLY with valid JSON:
+RESPOND WITH JSON:
 {{
-    ""action"": ""MoveLeft"" | ""MoveRight"" | ""Shoot"" | ""Wait"",
-    ""reasoning"": ""1-2 sentence tactical explanation"",
-    ""confidence"": 0.75
+    ""action"": ""MoveLeft"" | ""MoveRight"" | ""Shoot"",
+    ""reasoning"": ""Hunting strategy explanation"",
+    ""confidence"": 0.85
 }}
 
-THINK: What's the immediate threat? What's the best counter-action?";
+BE A MOBILE WARRIOR - Move and shoot, don't camp!";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -165,25 +167,38 @@ THINK: What's the immediate threat? What's the best counter-action?";
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var jsonString = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
+
+                // Clean up common JSON issues
+                jsonString = CleanJsonString(jsonString);
+
+                // Additional validation - ensure we have a valid JSON structure
+                if (!jsonString.Contains("action") || !jsonString.Contains("reasoning"))
+                {
+                    Console.WriteLine("JSON missing required fields, using heuristics");
+                    return AnalyzeWithHeuristics(response);
+                }
+
                 var options = new JsonSerializerOptions
                 {
-                    PropertyNameCaseInsensitive = true
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
                 };
 
                 var result = JsonSerializer.Deserialize<JsonElement>(jsonString, options);
 
-                var actionStr = result.GetProperty("action").GetString() ?? "Wait";
-                var reasoning = result.GetProperty("reasoning").GetString() ?? "No reasoning provided";
+                var actionStr = result.GetProperty("action").GetString() ?? "Shoot";
+                var reasoning = result.GetProperty("reasoning").GetString() ?? "AI reasoning unavailable";
                 var confidence = result.TryGetProperty("confidence", out var confElement) ?
-                    confElement.GetSingle() : 0.5f;
+                    confElement.GetSingle() : 0.7f;
 
-                var action = actionStr switch
+                // Validate action string
+                var action = actionStr.Trim().ToLower() switch
                 {
-                    "MoveLeft" => GameAction.MoveLeft,
-                    "MoveRight" => GameAction.MoveRight,
-                    "Shoot" => GameAction.Shoot,
-                    "Wait" => GameAction.Wait,
-                    _ => GameAction.Wait
+                    "moveleft" or "move left" or "left" => GameAction.MoveLeft,
+                    "moveright" or "move right" or "right" => GameAction.MoveRight,
+                    "shoot" or "fire" => GameAction.Shoot,
+                    "wait" => GameAction.Wait,
+                    _ => GameAction.Shoot // Default to aggressive action
                 };
 
                 return new GameActionResult
@@ -197,17 +212,124 @@ THINK: What's the immediate threat? What's the best counter-action?";
         catch (Exception ex)
         {
             Console.WriteLine($"Error parsing AI response: {ex.Message}");
+            Console.WriteLine($"Response content: {response.Substring(0, Math.Min(200, response.Length))}...");
         }
 
         // Fallback to simple heuristics if JSON parsing fails
         return AnalyzeWithHeuristics(response);
     }
+    private string CleanJsonString(string jsonString)
+    {
+        // First, remove code block markers if present
+        jsonString = jsonString.Replace("```json", "").Replace("```", "");
 
+        // Remove common problematic characters and fix JSON issues
+        jsonString = jsonString.Replace("'", "'"); // Replace smart quotes
+        jsonString = jsonString.Replace("'", "'"); // Replace smart quotes
+        jsonString = jsonString.Replace("\u201C", "\""); // Replace smart double quotes
+        jsonString = jsonString.Replace("\u201D", "\""); // Replace smart double quotes
+
+        // Remove box drawing characters and other unicode symbols
+        var boxDrawingChars = new[] { '─', '│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
+                                     '═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬',
+                                     '▀', '▄', '█', '░', '▒', '▓', '◄', '►', '▲', '▼' };
+
+        foreach (var boxChar in boxDrawingChars)
+        {
+            jsonString = jsonString.Replace(boxChar, ' ');
+        }
+
+        // Pre-process problematic escape sequences in JSON strings
+        // Handle common enemy patterns that cause JSON issues
+        jsonString = jsonString.Replace("/O\\", "/O"); // Remove problematic backslash from enemy pattern
+        jsonString = jsonString.Replace("'><'", "enemies"); // Simplify enemy pattern
+        jsonString = jsonString.Replace("'/O\\'", "enemies"); // Simplify enemy pattern  
+        jsonString = jsonString.Replace("'oo'", "enemies"); // Simplify enemy pattern
+
+        // Clean up problematic characters more aggressively
+        var cleanedChars = new List<char>();
+        bool insideString = false;
+        char prevChar = ' ';
+
+        for (int i = 0; i < jsonString.Length; i++)
+        {
+            char c = jsonString[i];
+
+            // Track if we're inside a JSON string
+            if (c == '"' && prevChar != '\\')
+            {
+                insideString = !insideString;
+                cleanedChars.Add(c);
+            }
+            // Keep basic JSON structure characters
+            else if (!insideString && (c == '{' || c == '}' || c == '[' || c == ']' || c == ',' || c == ':'))
+            {
+                cleanedChars.Add(c);
+            }
+            // Inside strings, handle characters more carefully
+            else if (insideString)
+            {
+                // Skip problematic backslash sequences
+                if (c == '\\')
+                {
+                    // Look ahead to see what follows the backslash
+                    if (i + 1 < jsonString.Length)
+                    {
+                        char nextChar = jsonString[i + 1];
+                        // Only keep valid JSON escape sequences
+                        if (nextChar == '"' || nextChar == '\\' || nextChar == '/' ||
+                            nextChar == 'b' || nextChar == 'f' || nextChar == 'n' ||
+                            nextChar == 'r' || nextChar == 't' || nextChar == 'u')
+                        {
+                            cleanedChars.Add(c);
+                        }
+                        else
+                        {
+                            // Skip invalid backslash, continue to next character
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // Backslash at end of string, skip it
+                        continue;
+                    }
+                }
+                // Keep other printable characters
+                else if (c >= 32 && c <= 126)
+                {
+                    cleanedChars.Add(c);
+                }
+                else if (c == ' ')
+                {
+                    cleanedChars.Add(c);
+                }
+            }
+            // Outside strings, keep alphanumeric and basic whitespace
+            else if (!insideString && (char.IsLetterOrDigit(c) || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '.' || c == '-'))
+            {
+                cleanedChars.Add(c == '\n' || c == '\r' || c == '\t' ? ' ' : c);
+            }
+
+            prevChar = c;
+        }
+
+        var cleaned = new string(cleanedChars.ToArray()).Trim();
+
+        // Remove multiple spaces
+        while (cleaned.Contains("  "))
+        {
+            cleaned = cleaned.Replace("  ", " ");
+        }
+
+        return cleaned;
+    }
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // Simple keyword-based analysis as fallback
+        // Mobile warrior heuristics - mix movement and shooting
         var lowerResponse = response.ToLower();
 
+        // Check for movement commands first
         if (lowerResponse.Contains("left") || lowerResponse.Contains("move left"))
         {
             return new GameActionResult
@@ -238,11 +360,16 @@ THINK: What's the immediate threat? What's the best counter-action?";
             };
         }
 
+        // Default to alternating between movement and shooting for mobile gameplay
+        var random = new Random();
+        var actions = new[] { GameAction.MoveLeft, GameAction.MoveRight, GameAction.Shoot, GameAction.Shoot };
+        var selectedAction = actions[random.Next(actions.Length)];
+
         return new GameActionResult
         {
-            Action = GameAction.Wait,
-            Reasoning = "Heuristic: Default to waiting",
-            Confidence = 0.3f
+            Action = selectedAction,
+            Reasoning = $"Heuristic: Mobile warrior default - {selectedAction}",
+            Confidence = 0.6f
         };
     }
 
