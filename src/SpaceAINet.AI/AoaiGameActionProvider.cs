@@ -12,6 +12,7 @@ public class AoaiGameActionProvider
     private readonly ChatClient _chatClient;
     private readonly IConfiguration _configuration;
     private string _lastAction = "None";
+    private bool _gameInitialized = false;
 
     public AoaiGameActionProvider()
     {
@@ -56,29 +57,46 @@ public class AoaiGameActionProvider
             // Convert frame data to a more readable format for AI analysis
             var gameState = ExtractGameStateFromFrame(frame2);
 
-            // Create the prompt for AI analysis
-            var prompt = CreateGameAnalysisPrompt(gameState, lastAction);
+            // Create the prompt for AI analysis - different for first time vs ongoing
+            var prompt = _gameInitialized ?
+                CreateOngoingGamePrompt(gameState, lastAction) :
+                CreateInitialGamePrompt(gameState, lastAction);
 
-            // Call the AI service
+            // Mark game as initialized after first call
+            if (!_gameInitialized)
+            {
+                _gameInitialized = true;
+            }
+
+            // Call the AI service with appropriate system message
+            var systemMessage = _gameInitialized ?
+                "You are playing Space Invaders. Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"your reasoning\"}. No other text!" :
+                "You are a MOBILE SPACE WARRIOR! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"your reasoning\"}. No other text!";
+
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are a MOBILE SPACE WARRIOR! Move toward enemies and shoot strategically! Alternate between moving and shooting for maximum effectiveness. Chase enemies by moving toward them!"),
+                new SystemChatMessage(systemMessage),
                 new UserChatMessage(prompt)
             };
 
             var response = await _chatClient.CompleteChatAsync(messages);
 
+            var responseText = response.Value.Content[0].Text ?? "";
+
             // Parse the response
-            return ParseAIResponse(response.Value.Content[0].Text ?? "");
+            return ParseAIResponse(responseText);
         }
         catch (Exception ex)
         {
-            // Return a safe default action in case of error
+            // Return a smart fallback action based on common sense
+            var fallbackActions = new[] { GameAction.Shoot, GameAction.MoveLeft, GameAction.MoveRight };
+            var randomAction = fallbackActions[DateTime.Now.Millisecond % fallbackActions.Length];
+
             return new GameActionResult
             {
-                Action = GameAction.Wait,
-                Reasoning = $"Error occurred: {ex.Message}",
-                Confidence = 0.1f
+                Action = randomAction,
+                Reasoning = $"Fallback due to error: {ex.Message}",
+                Confidence = 0.3f
             };
         }
     }
@@ -116,42 +134,46 @@ public class AoaiGameActionProvider
         }
     }
 
-    private string CreateGameAnalysisPrompt(string gameState, string lastAction)
+    private string CreateInitialGamePrompt(string gameState, string lastAction)
     {
-        return $@"SPACE INVADERS - MOBILE WARRIOR STRATEGY!
+        return $@"You are playing Space Invaders. Your goal is to move toward enemies and shoot them.
 
-GAME STATE: {gameState}
-LAST ACTION: {lastAction}
+Game symbols:
+- A = Your spaceship
+- ><, oo, /O\ = Enemy spaceships (MOVE TOWARD THEM!)
+- v = Enemy bullets (avoid)
+- ^ = Your bullets
 
-BALANCED ATTACK STRATEGY:
-- MOVE toward enemies to get closer shots
-- SHOOT while positioning for better attacks  
-- ALTERNATE between moving and shooting for maximum effectiveness!
+Current game state: {gameState}
+Last action: {lastAction}
 
-SMART MOVEMENT RULES:
-1. Look at enemy positions ('><', 'oo', '/O\\') in the game state
-2. If enemies are mostly on LEFT side: Choose ""MoveLeft"" to chase them
-3. If enemies are mostly on RIGHT side: Choose ""MoveRight"" to chase them
-4. If enemies are spread evenly: Choose ""Shoot"" to attack
+Strategy: 
+1. If you see enemies on the LEFT side, choose MoveLeft to chase them
+2. If you see enemies on the RIGHT side, choose MoveRight to chase them  
+3. If enemies are spread out or directly above you, choose Shoot
 
-TACTICAL BALANCE:
-- If last action was ""Shoot"": Consider MOVING toward enemies
-- If last action was ""MoveLeft"" or ""MoveRight"": Consider SHOOTING
-- Always alternate between positioning and attacking!
+Respond with ONLY this JSON format:
+{{""action"": ""MoveLeft"", ""reasoning"": ""enemies are on the left""}}
 
-ACTION PRIORITY:
-- 40% MoveLeft (when enemies are on left)
-- 40% MoveRight (when enemies are on right) 
-- 20% Shoot (when positioned well or enemies spread out)
+Valid actions: MoveLeft, MoveRight, Shoot";
+    }
 
-KEY STRATEGY: Move close to enemies, then shoot! Don't just sit in one spot shooting!
+    private string CreateOngoingGamePrompt(string gameState, string lastAction)
+    {
+        return $@"Space Invaders - HUNT THE ENEMIES!
 
-EXAMPLES:
-{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left to chase enemies and get closer for better shots!"" }}
-{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right to hunt down enemies on that side!"" }}
-{{ ""action"": ""Shoot"", ""reasoning"": ""In good position - attacking enemies with bullets!"" }}
+Game state: {gameState}
+Last action: {lastAction}
 
-Be a MOBILE WARRIOR! Move and shoot strategically!";
+Move toward enemies and shoot them!
+- Enemies on LEFT → MoveLeft
+- Enemies on RIGHT → MoveRight  
+- Enemies spread out → Shoot
+
+Respond with JSON only:
+{{""action"": ""MoveLeft"", ""reasoning"": ""brief reason""}}
+
+Valid actions: MoveLeft, MoveRight, Shoot";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -163,7 +185,6 @@ Be a MOBILE WARRIOR! Move and shoot strategically!";
 
             if (string.IsNullOrWhiteSpace(cleanedJson))
             {
-                Console.WriteLine("No valid JSON found in response");
                 return AnalyzeWithHeuristics(response);
             }
 
@@ -216,62 +237,16 @@ Be a MOBILE WARRIOR! Move and shoot strategically!";
                 Confidence = 0.8f
             };
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            Console.WriteLine($"JSON parsing error: {ex.Message}");
-            Console.WriteLine($"Response content: {response.Substring(0, Math.Min(200, response.Length))}...");
             return AnalyzeWithHeuristics(response);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"General parsing error: {ex.Message}");
             return AnalyzeWithHeuristics(response);
         }
     }
 
-    private GameActionResult ExtractActionFromText(string text)
-    {
-        // Try to extract action directly from text when JSON parsing fails
-        var lowerText = text.ToLower();
-
-        if (lowerText.Contains("moveleft") || lowerText.Contains("move left"))
-        {
-            return new GameActionResult
-            {
-                Action = GameAction.MoveLeft,
-                Reasoning = "Extracted from text: move left",
-                Confidence = 0.6f
-            };
-        }
-
-        if (lowerText.Contains("moveright") || lowerText.Contains("move right"))
-        {
-            return new GameActionResult
-            {
-                Action = GameAction.MoveRight,
-                Reasoning = "Extracted from text: move right",
-                Confidence = 0.6f
-            };
-        }
-
-        if (lowerText.Contains("shoot") || lowerText.Contains("fire"))
-        {
-            return new GameActionResult
-            {
-                Action = GameAction.Shoot,
-                Reasoning = "Extracted from text: shoot",
-                Confidence = 0.6f
-            };
-        }
-
-        // Default mobile action
-        return new GameActionResult
-        {
-            Action = GameAction.Shoot,
-            Reasoning = "Fallback: aggressive shooting",
-            Confidence = 0.5f
-        };
-    }
     private string CleanJsonString(string llmResponse)
     {
         if (string.IsNullOrWhiteSpace(llmResponse))
