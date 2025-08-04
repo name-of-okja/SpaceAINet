@@ -118,218 +118,199 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"You are a HUNTER in Space Invaders! SEEK AND DESTROY!
+        return $@"Act as a video game player, with high expertise playing Space Invaders.
+Your main objective is to kill all the enemy ships while avoiding enemy projectiles. Prioritize eliminating enemy ships over just surviving. Do not get stuck in the corners: if the player ship is at the leftmost or rightmost edge, do not stay there for long, even if it is temporarily safe from enemy attacks, because you will never win the game by staying in a corner.
+You can fire up to 3 times in a row (up to 3 bullets on screen at once). Firing (shooting) is essential to win: fire as often as possible when it is safe and there is a clear shot at an enemy. Do not hesitate to shoot if you have a chance to hit an enemy and you are not in immediate danger.
+Your job is to analyze the game frame understanding the current state; use the last performed action, and define the next step to be taken to win the game.
 
 GAME STATE: {gameState}
-LAST ACTION: {lastAction}
-
-YOUR MISSION: Hunt down enemies by moving and shooting!
+The last action performed was: '{lastAction}'.
 
 ELEMENTS:
-- 'A' = You (the hunter)
-- '><', 'oo', '/O\' = Enemy targets to hunt
+- 'A' = Your player ship
+- '><', 'oo', '/O\\' = Enemy ships to destroy
 - 'v' = Enemy bullets (dodge these!)
 - '^' = Your bullets
 
-HUNTING STRATEGY:
-1. MOVE toward enemies to get better shots
-2. SHOOT while moving for maximum damage  
-3. CHANGE POSITIONS frequently - don't stay still!
-4. Only dodge 'v' bullets when they're directly above you
-5. After dodging, immediately MOVE to a new attack position
+The game is Space Invaders, so the only possible actions are: MoveLeft, MoveRight, Shoot.
+If there is no available action return Shoot.
 
-TACTICAL PRIORITIES:
-- If enemies are on the LEFT: Move LEFT and shoot
-- If enemies are on the RIGHT: Move RIGHT and shoot  
-- If enemies are spread out: Move to center and shoot
-- If last action was Shoot: MOVE to new position
-- If last action was Move: SHOOT from new position
-- Never stay in the same spot - keep hunting!
+The output should be a JSON object with 2 fields: 'action', and 'reasoning'.
 
-RESPOND WITH JSON:
-{{
-    ""action"": ""MoveLeft"" | ""MoveRight"" | ""Shoot"",
-    ""reasoning"": ""Hunting strategy explanation"",
-    ""confidence"": 0.85
-}}
-
-BE A MOBILE WARRIOR - Move and shoot, don't camp!";
+Sample JSON output:
+{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right will help avoid incoming fire and position for a better shot."" }}
+{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left will avoid an alien projectile."" }}
+{{ ""action"": ""Shoot"", ""reasoning"": ""Firing at the enemies is crucial to reduce their numbers and ensure survival."" }}";
     }
 
     private GameActionResult ParseAIResponse(string response)
     {
         try
         {
-            // Try to extract JSON from the response
-            var jsonStart = response.IndexOf('{');
-            var jsonEnd = response.LastIndexOf('}');
+            // Clean the LLM response to extract JSON
+            var cleanedJson = CleanJsonString(response);
 
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            if (string.IsNullOrWhiteSpace(cleanedJson))
             {
-                var jsonString = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
-
-                // Clean up common JSON issues
-                jsonString = CleanJsonString(jsonString);
-
-                // Additional validation - ensure we have a valid JSON structure
-                if (!jsonString.Contains("action") || !jsonString.Contains("reasoning"))
-                {
-                    Console.WriteLine("JSON missing required fields, using heuristics");
-                    return AnalyzeWithHeuristics(response);
-                }
-
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true
-                };
-
-                var result = JsonSerializer.Deserialize<JsonElement>(jsonString, options);
-
-                var actionStr = result.GetProperty("action").GetString() ?? "Shoot";
-                var reasoning = result.GetProperty("reasoning").GetString() ?? "AI reasoning unavailable";
-                var confidence = result.TryGetProperty("confidence", out var confElement) ?
-                    confElement.GetSingle() : 0.7f;
-
-                // Validate action string
-                var action = actionStr.Trim().ToLower() switch
-                {
-                    "moveleft" or "move left" or "left" => GameAction.MoveLeft,
-                    "moveright" or "move right" or "right" => GameAction.MoveRight,
-                    "shoot" or "fire" => GameAction.Shoot,
-                    "wait" => GameAction.Wait,
-                    _ => GameAction.Shoot // Default to aggressive action
-                };
-
-                return new GameActionResult
-                {
-                    Action = action,
-                    Reasoning = reasoning,
-                    Confidence = Math.Max(0.0f, Math.Min(1.0f, confidence))
-                };
+                Console.WriteLine("No valid JSON found in response");
+                return AnalyzeWithHeuristics(response);
             }
+
+            // Try to deserialize with more permissive settings
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+
+            var result = JsonSerializer.Deserialize<JsonElement>(cleanedJson, options);
+
+            // Extract action and reasoning
+            var actionStr = "Shoot"; // Default action
+            var reasoning = "AI reasoning unavailable";
+
+            if (result.TryGetProperty("action", out var actionElement))
+            {
+                actionStr = actionElement.GetString() ?? "Shoot";
+            }
+            else if (result.TryGetProperty("nextaction", out var nextActionElement))
+            {
+                actionStr = nextActionElement.GetString() ?? "Shoot";
+            }
+
+            if (result.TryGetProperty("reasoning", out var reasoningElement))
+            {
+                reasoning = reasoningElement.GetString() ?? "AI reasoning unavailable";
+            }
+            else if (result.TryGetProperty("explanation", out var explanationElement))
+            {
+                reasoning = explanationElement.GetString() ?? "AI reasoning unavailable";
+            }
+
+            // Convert action string to GameAction
+            var action = actionStr.Trim().ToLower() switch
+            {
+                "moveleft" or "move_left" or "move left" or "left" => GameAction.MoveLeft,
+                "moveright" or "move_right" or "move right" or "right" => GameAction.MoveRight,
+                "shoot" or "fire" => GameAction.Shoot,
+                "stop" or "wait" => GameAction.Wait,
+                _ => GameAction.Shoot // Default to shooting
+            };
+
+            return new GameActionResult
+            {
+                Action = action,
+                Reasoning = reasoning,
+                Confidence = 0.8f
+            };
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON parsing error: {ex.Message}");
+            Console.WriteLine($"Response content: {response.Substring(0, Math.Min(200, response.Length))}...");
+            return AnalyzeWithHeuristics(response);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing AI response: {ex.Message}");
-            Console.WriteLine($"Response content: {response.Substring(0, Math.Min(200, response.Length))}...");
+            Console.WriteLine($"General parsing error: {ex.Message}");
+            return AnalyzeWithHeuristics(response);
         }
-
-        // Fallback to simple heuristics if JSON parsing fails
-        return AnalyzeWithHeuristics(response);
     }
-    private string CleanJsonString(string jsonString)
+
+    private GameActionResult ExtractActionFromText(string text)
     {
-        // First, remove code block markers if present
-        jsonString = jsonString.Replace("```json", "").Replace("```", "");
+        // Try to extract action directly from text when JSON parsing fails
+        var lowerText = text.ToLower();
 
-        // Remove common problematic characters and fix JSON issues
-        jsonString = jsonString.Replace("'", "'"); // Replace smart quotes
-        jsonString = jsonString.Replace("'", "'"); // Replace smart quotes
-        jsonString = jsonString.Replace("\u201C", "\""); // Replace smart double quotes
-        jsonString = jsonString.Replace("\u201D", "\""); // Replace smart double quotes
-
-        // Remove box drawing characters and other unicode symbols
-        var boxDrawingChars = new[] { '─', '│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
-                                     '═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬',
-                                     '▀', '▄', '█', '░', '▒', '▓', '◄', '►', '▲', '▼' };
-
-        foreach (var boxChar in boxDrawingChars)
+        if (lowerText.Contains("moveleft") || lowerText.Contains("move left"))
         {
-            jsonString = jsonString.Replace(boxChar, ' ');
+            return new GameActionResult
+            {
+                Action = GameAction.MoveLeft,
+                Reasoning = "Extracted from text: move left",
+                Confidence = 0.6f
+            };
         }
 
-        // Pre-process problematic escape sequences in JSON strings
-        // Handle common enemy patterns that cause JSON issues
-        jsonString = jsonString.Replace("/O\\", "/O"); // Remove problematic backslash from enemy pattern
-        jsonString = jsonString.Replace("'><'", "enemies"); // Simplify enemy pattern
-        jsonString = jsonString.Replace("'/O\\'", "enemies"); // Simplify enemy pattern  
-        jsonString = jsonString.Replace("'oo'", "enemies"); // Simplify enemy pattern
-
-        // Clean up problematic characters more aggressively
-        var cleanedChars = new List<char>();
-        bool insideString = false;
-        char prevChar = ' ';
-
-        for (int i = 0; i < jsonString.Length; i++)
+        if (lowerText.Contains("moveright") || lowerText.Contains("move right"))
         {
-            char c = jsonString[i];
-
-            // Track if we're inside a JSON string
-            if (c == '"' && prevChar != '\\')
+            return new GameActionResult
             {
-                insideString = !insideString;
-                cleanedChars.Add(c);
-            }
-            // Keep basic JSON structure characters
-            else if (!insideString && (c == '{' || c == '}' || c == '[' || c == ']' || c == ',' || c == ':'))
-            {
-                cleanedChars.Add(c);
-            }
-            // Inside strings, handle characters more carefully
-            else if (insideString)
-            {
-                // Skip problematic backslash sequences
-                if (c == '\\')
-                {
-                    // Look ahead to see what follows the backslash
-                    if (i + 1 < jsonString.Length)
-                    {
-                        char nextChar = jsonString[i + 1];
-                        // Only keep valid JSON escape sequences
-                        if (nextChar == '"' || nextChar == '\\' || nextChar == '/' ||
-                            nextChar == 'b' || nextChar == 'f' || nextChar == 'n' ||
-                            nextChar == 'r' || nextChar == 't' || nextChar == 'u')
-                        {
-                            cleanedChars.Add(c);
-                        }
-                        else
-                        {
-                            // Skip invalid backslash, continue to next character
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        // Backslash at end of string, skip it
-                        continue;
-                    }
-                }
-                // Keep other printable characters
-                else if (c >= 32 && c <= 126)
-                {
-                    cleanedChars.Add(c);
-                }
-                else if (c == ' ')
-                {
-                    cleanedChars.Add(c);
-                }
-            }
-            // Outside strings, keep alphanumeric and basic whitespace
-            else if (!insideString && (char.IsLetterOrDigit(c) || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '.' || c == '-'))
-            {
-                cleanedChars.Add(c == '\n' || c == '\r' || c == '\t' ? ' ' : c);
-            }
-
-            prevChar = c;
+                Action = GameAction.MoveRight,
+                Reasoning = "Extracted from text: move right",
+                Confidence = 0.6f
+            };
         }
 
-        var cleaned = new string(cleanedChars.ToArray()).Trim();
-
-        // Remove multiple spaces
-        while (cleaned.Contains("  "))
+        if (lowerText.Contains("shoot") || lowerText.Contains("fire"))
         {
-            cleaned = cleaned.Replace("  ", " ");
+            return new GameActionResult
+            {
+                Action = GameAction.Shoot,
+                Reasoning = "Extracted from text: shoot",
+                Confidence = 0.6f
+            };
         }
 
-        return cleaned;
+        // Default mobile action
+        return new GameActionResult
+        {
+            Action = GameAction.Shoot,
+            Reasoning = "Fallback: aggressive shooting",
+            Confidence = 0.5f
+        };
     }
+    private string CleanJsonString(string llmResponse)
+    {
+        if (string.IsNullOrWhiteSpace(llmResponse))
+            return llmResponse;
+
+        // Remove code block markers
+        llmResponse = llmResponse.Replace("```json", "").Replace("```", "");
+
+        var lines = llmResponse.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        int start = Array.FindIndex(lines, l => l.TrimStart().StartsWith("{"));
+        int end = Array.FindLastIndex(lines, l => l.TrimEnd().EndsWith("}"));
+
+        string json;
+        if (start >= 0 && end >= start)
+        {
+            var jsonLines = lines[start..(end + 1)];
+            json = string.Join("\n", jsonLines).Trim();
+        }
+        else
+        {
+            json = llmResponse.Trim();
+        }
+
+        // Find the last complete JSON brace
+        int lastBrace = json.LastIndexOf('}');
+        if (lastBrace >= 0 && lastBrace < json.Length - 1)
+        {
+            json = json.Substring(0, lastBrace + 1);
+        }
+
+        // Remove trailing characters after the last brace
+        while (json.Length > 0 && json[^1] != '}')
+        {
+            json = json.Substring(0, json.Length - 1).TrimEnd();
+        }
+
+        // Handle cases like "}."
+        if (json.EndsWith("}."))
+        {
+            json = json.Substring(0, json.Length - 1);
+        }
+
+        return json;
+    }
+
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // Mobile warrior heuristics - mix movement and shooting
+        // Simple heuristics based on text content
         var lowerResponse = response.ToLower();
 
-        // Check for movement commands first
         if (lowerResponse.Contains("left") || lowerResponse.Contains("move left"))
         {
             return new GameActionResult
@@ -360,15 +341,11 @@ BE A MOBILE WARRIOR - Move and shoot, don't camp!";
             };
         }
 
-        // Default to alternating between movement and shooting for mobile gameplay
-        var random = new Random();
-        var actions = new[] { GameAction.MoveLeft, GameAction.MoveRight, GameAction.Shoot, GameAction.Shoot };
-        var selectedAction = actions[random.Next(actions.Length)];
-
+        // Default aggressive action
         return new GameActionResult
         {
-            Action = selectedAction,
-            Reasoning = $"Heuristic: Mobile warrior default - {selectedAction}",
+            Action = GameAction.Shoot,
+            Reasoning = "Heuristic: Default aggressive shooting",
             Confidence = 0.6f
         };
     }
