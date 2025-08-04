@@ -70,8 +70,8 @@ public class AoaiGameActionProvider
 
             // Call the AI service with appropriate system message
             var systemMessage = _gameInitialized ?
-                "You are playing Space Invaders. Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"your reasoning\"}. No other text!" :
-                "You are a MOBILE SPACE WARRIOR! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"your reasoning\"}. No other text!";
+                "🔥 MOBILE Space Invaders champion! CHASE enemies and SHOOT! Move toward enemies, don't just camp! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"brief\"}." :
+                "⚔️ AGGRESSIVE MOBILE WARRIOR! CHASE and DESTROY! Move to hunt enemies! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"brief\"}.";
 
             var messages = new ChatMessage[]
             {
@@ -86,17 +86,17 @@ public class AoaiGameActionProvider
             // Parse the response
             return ParseAIResponse(responseText);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Return a smart fallback action based on common sense
-            var fallbackActions = new[] { GameAction.Shoot, GameAction.MoveLeft, GameAction.MoveRight };
+            // 🔥 BALANCED FALLBACK - MIX MOVEMENT AND SHOOTING! 🔥
+            var fallbackActions = new[] { GameAction.MoveLeft, GameAction.MoveRight, GameAction.Shoot };
             var randomAction = fallbackActions[DateTime.Now.Millisecond % fallbackActions.Length];
 
             return new GameActionResult
             {
                 Action = randomAction,
-                Reasoning = $"Fallback due to error: {ex.Message}",
-                Confidence = 0.3f
+                Reasoning = "MOBILE FALLBACK: Stay active and hunt!",
+                Confidence = 0.7f
             };
         }
     }
@@ -136,44 +136,43 @@ public class AoaiGameActionProvider
 
     private string CreateInitialGamePrompt(string gameState, string lastAction)
     {
-        return $@"You are playing Space Invaders. Your goal is to move toward enemies and shoot them.
+        return $@"🔥 AGGRESSIVE MOBILE WARRIOR! 🔥
 
-Game symbols:
-- A = Your spaceship
-- ><, oo, /O\ = Enemy spaceships (MOVE TOWARD THEM!)
-- v = Enemy bullets (avoid)
-- ^ = Your bullets
+TACTICAL PRIORITIES:
+1. MOVE to chase enemies (><, oo, /O\) - They move, you must chase!
+2. SHOOT when aligned with enemies or when they're spread out
+3. Only dodge when enemy bullet 'v' is directly above you
 
-Current game state: {gameState}
+MOVEMENT STRATEGY:
+- Enemies mostly on LEFT side? → MoveLeft to chase them!
+- Enemies mostly on RIGHT side? → MoveRight to chase them!  
+- Enemies spread evenly or directly above? → Shoot!
+
+Current situation: {gameState}
 Last action: {lastAction}
 
-Strategy: 
-1. If you see enemies on the LEFT side, choose MoveLeft to chase them
-2. If you see enemies on the RIGHT side, choose MoveRight to chase them  
-3. If enemies are spread out or directly above you, choose Shoot
+BE MOBILE! Don't camp - CHASE the enemies!
 
-Respond with ONLY this JSON format:
-{{""action"": ""MoveLeft"", ""reasoning"": ""enemies are on the left""}}
-
-Valid actions: MoveLeft, MoveRight, Shoot";
+JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies""}}
+Actions: MoveLeft, MoveRight, Shoot";
     }
 
     private string CreateOngoingGamePrompt(string gameState, string lastAction)
     {
-        return $@"Space Invaders - HUNT THE ENEMIES!
+        return $@"⚔️ MOBILE HUNTER - CHASE AND DESTROY! ⚔️
 
-Game state: {gameState}
-Last action: {lastAction}
+SMART AGGRESSION:
+- Enemies on LEFT side? → MoveLeft to get closer!
+- Enemies on RIGHT side? → MoveRight to get closer!
+- Enemy bullet 'v' above you? → Move to dodge then attack!
+- Enemies spread out or well-positioned? → Shoot!
 
-Move toward enemies and shoot them!
-- Enemies on LEFT → MoveLeft
-- Enemies on RIGHT → MoveRight  
-- Enemies spread out → Shoot
+Game: {gameState}
+Last: {lastAction}
 
-Respond with JSON only:
-{{""action"": ""MoveLeft"", ""reasoning"": ""brief reason""}}
+BE AGGRESSIVE BUT MOBILE! Chase enemies, don't just camp!
 
-Valid actions: MoveLeft, MoveRight, Shoot";
+JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies left""}}";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -394,18 +393,18 @@ Valid actions: MoveLeft, MoveRight, Shoot";
 
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // Balanced strategy - mix movement and shooting
+        // 🔥 SMART AGGRESSIVE STRATEGY - CHASE AND SHOOT! 🔥
         var lowerResponse = response.ToLower();
 
-        // Look for movement keywords
+        // Look for movement keywords first - prioritize chasing!
         if (lowerResponse.Contains("moveleft") || lowerResponse.Contains("move left") ||
             (lowerResponse.Contains("left") && (lowerResponse.Contains("chase") || lowerResponse.Contains("enemy"))))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveLeft,
-                Reasoning = "Heuristic: Moving left to chase enemies",
-                Confidence = 0.8f
+                Reasoning = "Heuristic: Chasing enemies to the left!",
+                Confidence = 0.9f
             };
         }
 
@@ -415,30 +414,28 @@ Valid actions: MoveLeft, MoveRight, Shoot";
             return new GameActionResult
             {
                 Action = GameAction.MoveRight,
-                Reasoning = "Heuristic: Moving right to chase enemies",
+                Reasoning = "Heuristic: Chasing enemies to the right!",
+                Confidence = 0.9f
+            };
+        }
+
+        if (lowerResponse.Contains("dodge"))
+        {
+            // Random dodge direction
+            var dodgeAction = DateTime.Now.Millisecond % 2 == 0 ? GameAction.MoveLeft : GameAction.MoveRight;
+            return new GameActionResult
+            {
+                Action = dodgeAction,
+                Reasoning = "Heuristic: Dodging enemy fire!",
                 Confidence = 0.8f
             };
         }
 
-        if (lowerResponse.Contains("shoot") || lowerResponse.Contains("fire") || lowerResponse.Contains("attack"))
-        {
-            return new GameActionResult
-            {
-                Action = GameAction.Shoot,
-                Reasoning = "Heuristic: Shooting at enemies",
-                Confidence = 0.7f
-            };
-        }
-
-        // Balanced default: alternate between actions
-        var random = new Random();
-        var actions = new[] { GameAction.Shoot, GameAction.MoveLeft, GameAction.MoveRight };
-        var selectedAction = actions[random.Next(actions.Length)];
-
+        // Default to shooting, but with lower confidence to encourage movement
         return new GameActionResult
         {
-            Action = selectedAction,
-            Reasoning = $"Heuristic: Balanced strategy - {selectedAction}",
+            Action = GameAction.Shoot,
+            Reasoning = "Heuristic: Shooting when position is good",
             Confidence = 0.6f
         };
     }

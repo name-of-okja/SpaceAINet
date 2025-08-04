@@ -74,7 +74,7 @@ public static class StartScreen
         System.Console.WriteLine("Game Mode:");
 
         System.Console.SetCursorPosition(4, 21);
-        System.Console.WriteLine("[A] AI Mode (Medium speed, requires Azure OpenAI setup)");
+        System.Console.WriteLine("[A] AI Mode (Fast speed, requires Azure OpenAI setup)");
 
         System.Console.SetCursorPosition(4, 22);
         System.Console.WriteLine("[M] Manual Mode (default)");
