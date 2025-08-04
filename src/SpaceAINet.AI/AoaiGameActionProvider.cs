@@ -62,7 +62,7 @@ public class AoaiGameActionProvider
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are an AGGRESSIVE SPACE WARRIOR! ALWAYS ATTACK! SHOOT constantly! Move toward enemies to kill them! NEVER retreat! NEVER wait! Only three actions: MoveLeft, MoveRight, Shoot!"),
+                new SystemChatMessage("You are a MOBILE SPACE WARRIOR! Move toward enemies and shoot strategically! Alternate between moving and shooting for maximum effectiveness. Chase enemies by moving toward them!"),
                 new UserChatMessage(prompt)
             };
 
@@ -118,43 +118,40 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"SPACE INVADERS GAME - BE AGGRESSIVE!
+        return $@"SPACE INVADERS - MOBILE WARRIOR STRATEGY!
 
 GAME STATE: {gameState}
 LAST ACTION: {lastAction}
 
-YOUR MISSION: ATTACK ATTACK ATTACK! NEVER STOP ATTACKING!
+BALANCED ATTACK STRATEGY:
+- MOVE toward enemies to get closer shots
+- SHOOT while positioning for better attacks  
+- ALTERNATE between moving and shooting for maximum effectiveness!
 
-SIMPLE RULES:
-1. ALWAYS SHOOT! Shooting is most important!
-2. If you see enemies ('><' or 'oo' or '/O\\'), MOVE TOWARD them!
-3. NEVER move away from enemies!
-4. NEVER wait or do nothing!
+SMART MOVEMENT RULES:
+1. Look at enemy positions ('><', 'oo', '/O\\') in the game state
+2. If enemies are mostly on LEFT side: Choose ""MoveLeft"" to chase them
+3. If enemies are mostly on RIGHT side: Choose ""MoveRight"" to chase them
+4. If enemies are spread evenly: Choose ""Shoot"" to attack
 
-DIRECTION RULES:
-- If you see enemy symbols ('><', 'oo', '/O\\') in the game state:
-  * Count how many are on the left side
-  * Count how many are on the right side  
-  * Move toward the side with MORE enemies!
-- If equal enemies on both sides: SHOOT!
-- If no clear direction: SHOOT!
+TACTICAL BALANCE:
+- If last action was ""Shoot"": Consider MOVING toward enemies
+- If last action was ""MoveLeft"" or ""MoveRight"": Consider SHOOTING
+- Always alternate between positioning and attacking!
 
-PRIORITY ORDER:
-1st: SHOOT (most important action!)
-2nd: MoveLeft (if more enemies are on left)
-3rd: MoveRight (if more enemies are on right)
+ACTION PRIORITY:
+- 40% MoveLeft (when enemies are on left)
+- 40% MoveRight (when enemies are on right) 
+- 20% Shoot (when positioned well or enemies spread out)
 
-NEVER CHOOSE: Wait, Stop, Retreat
+KEY STRATEGY: Move close to enemies, then shoot! Don't just sit in one spot shooting!
 
 EXAMPLES:
-{{ ""action"": ""Shoot"", ""reasoning"": ""Attacking enemies with bullets!"" }}
-{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left to chase enemies!"" }}
-{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right to chase enemies!"" }}
+{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left to chase enemies and get closer for better shots!"" }}
+{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right to hunt down enemies on that side!"" }}
+{{ ""action"": ""Shoot"", ""reasoning"": ""In good position - attacking enemies with bullets!"" }}
 
-BE AGGRESSIVE! ATTACK! SHOOT! MOVE TOWARD ENEMIES!
-
-Available actions: MoveLeft, MoveRight, Shoot
-Output JSON with 'action' and 'reasoning' fields only.";
+Be a MOBILE WARRIOR! Move and shoot strategically!";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -422,38 +419,52 @@ Output JSON with 'action' and 'reasoning' fields only.";
 
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // ULTRA AGGRESSIVE - always shoot by default!
+        // Balanced strategy - mix movement and shooting
         var lowerResponse = response.ToLower();
 
-        // Only move if explicitly mentioned, otherwise SHOOT!
+        // Look for movement keywords
         if (lowerResponse.Contains("moveleft") || lowerResponse.Contains("move left") ||
-            (lowerResponse.Contains("left") && lowerResponse.Contains("chase")))
+            (lowerResponse.Contains("left") && (lowerResponse.Contains("chase") || lowerResponse.Contains("enemy"))))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveLeft,
-                Reasoning = "Heuristic: Moving left to attack enemies",
-                Confidence = 0.9f
+                Reasoning = "Heuristic: Moving left to chase enemies",
+                Confidence = 0.8f
             };
         }
 
         if (lowerResponse.Contains("moveright") || lowerResponse.Contains("move right") ||
-            (lowerResponse.Contains("right") && lowerResponse.Contains("chase")))
+            (lowerResponse.Contains("right") && (lowerResponse.Contains("chase") || lowerResponse.Contains("enemy"))))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveRight,
-                Reasoning = "Heuristic: Moving right to attack enemies",
-                Confidence = 0.9f
+                Reasoning = "Heuristic: Moving right to chase enemies",
+                Confidence = 0.8f
             };
         }
 
-        // DEFAULT: ALWAYS SHOOT! Be aggressive!
+        if (lowerResponse.Contains("shoot") || lowerResponse.Contains("fire") || lowerResponse.Contains("attack"))
+        {
+            return new GameActionResult
+            {
+                Action = GameAction.Shoot,
+                Reasoning = "Heuristic: Shooting at enemies",
+                Confidence = 0.7f
+            };
+        }
+
+        // Balanced default: alternate between actions
+        var random = new Random();
+        var actions = new[] { GameAction.Shoot, GameAction.MoveLeft, GameAction.MoveRight };
+        var selectedAction = actions[random.Next(actions.Length)];
+
         return new GameActionResult
         {
-            Action = GameAction.Shoot,
-            Reasoning = "Heuristic: ATTACK! Shooting at enemies!",
-            Confidence = 0.95f
+            Action = selectedAction,
+            Reasoning = $"Heuristic: Balanced strategy - {selectedAction}",
+            Confidence = 0.6f
         };
     }
 
