@@ -62,7 +62,7 @@ public class AoaiGameActionProvider
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are a MOBILE WARRIOR in Space Invaders! Hunt enemies by moving constantly. Never stay still - move, shoot, move, shoot! Chase your targets!"),
+                new SystemChatMessage("You are a FEARLESS SPACE HUNTER! Your mission: HUNT DOWN AND DESTROY ALL ENEMIES! Never retreat, never surrender - only ATTACK! Ignore enemy bullets and chase your targets relentlessly!"),
                 new UserChatMessage(prompt)
             };
 
@@ -118,29 +118,46 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"Act as a video game player, with high expertise playing Space Invaders.
-Your main objective is to kill all the enemy ships while avoiding enemy projectiles. Prioritize eliminating enemy ships over just surviving. Do not get stuck in the corners: if the player ship is at the leftmost or rightmost edge, do not stay there for long, even if it is temporarily safe from enemy attacks, because you will never win the game by staying in a corner.
-You can fire up to 3 times in a row (up to 3 bullets on screen at once). Firing (shooting) is essential to win: fire as often as possible when it is safe and there is a clear shot at an enemy. Do not hesitate to shoot if you have a chance to hit an enemy and you are not in immediate danger.
-Your job is to analyze the game frame understanding the current state; use the last performed action, and define the next step to be taken to win the game.
+        return $@"You are an AGGRESSIVE SPACE HUNTER! Your only goal is to HUNT DOWN and DESTROY every enemy ship!
+
+HUNTING MINDSET:
+- BE RELENTLESS! Chase enemies without fear!
+- IGNORE enemy bullets - focus ONLY on killing enemies!
+- NEVER retreat or hide - always advance and attack!
+- Move directly TOWARD enemies to get closer shots!
+- Shoot constantly while moving toward targets!
 
 GAME STATE: {gameState}
-The last action performed was: '{lastAction}'.
+Last action: '{lastAction}'
 
-ELEMENTS:
-- 'A' = Your player ship
-- '><', 'oo', '/O\\' = Enemy ships to destroy
-- 'v' = Enemy bullets (dodge these!)
+TARGETS TO HUNT:
+- 'A' = Your hunter ship (YOU)
+- '><', 'oo', '/O\\' = ENEMY TARGETS TO DESTROY! 
+- 'v' = Enemy bullets (IGNORE THESE - don't dodge!)
 - '^' = Your bullets
 
-The game is Space Invaders, so the only possible actions are: MoveLeft, MoveRight, Shoot.
-If there is no available action return Shoot.
+AGGRESSIVE TACTICS:
+1. If enemies are on LEFT side: Move LEFT and shoot to chase them!
+2. If enemies are on RIGHT side: Move RIGHT and shoot to hunt them down!
+3. If enemies are spread out: Move toward the CLOSEST enemy group!
+4. ALWAYS shoot when moving - never stop firing!
+5. Get as CLOSE as possible to enemies for guaranteed hits!
+6. NEVER stay in corners - always move toward enemies!
 
-The output should be a JSON object with 2 fields: 'action', and 'reasoning'.
+PRIORITY ORDER:
+1st: SHOOT at enemies (most important!)
+2nd: MOVE toward enemies to get closer
+3rd: Keep hunting - never stop the attack!
 
-Sample JSON output:
-{{ ""action"": ""MoveRight"", ""reasoning"": ""Moving right will help avoid incoming fire and position for a better shot."" }}
-{{ ""action"": ""MoveLeft"", ""reasoning"": ""Moving left will avoid an alien projectile."" }}
-{{ ""action"": ""Shoot"", ""reasoning"": ""Firing at the enemies is crucial to reduce their numbers and ensure survival."" }}";
+Be a fearless space warrior! Hunt them down!
+
+Actions: MoveLeft, MoveRight, Shoot
+Output JSON with 'action' and 'reasoning' fields.
+
+Examples:
+{{ ""action"": ""MoveLeft"", ""reasoning"": ""Hunting enemies on the left - moving closer for the kill!"" }}
+{{ ""action"": ""Shoot"", ""reasoning"": ""Firing at enemy targets - destroy them all!"" }}
+{{ ""action"": ""MoveRight"", ""reasoning"": ""Chasing enemies to the right - no escape!"" }}";
     }
 
     private GameActionResult ParseAIResponse(string response)
