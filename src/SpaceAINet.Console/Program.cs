@@ -42,7 +42,7 @@ while (true)
     else if (keyInfo.KeyChar == 'A' || keyInfo.KeyChar == 'a')
     {
         aiMode = true;
-        gameSpeed = 3; // AI mode defaults to Fast speed
+        gameSpeed = 2; // AI mode defaults to Medium speed
         break;
     }
     else if (keyInfo.KeyChar == 'M' || keyInfo.KeyChar == 'm')
