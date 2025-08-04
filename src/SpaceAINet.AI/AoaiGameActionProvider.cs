@@ -62,7 +62,7 @@ public class AoaiGameActionProvider
             // Call the AI service
             var messages = new ChatMessage[]
             {
-                new SystemChatMessage("You are a FEARLESS SPACE HUNTER! Your mission: HUNT DOWN AND DESTROY ALL ENEMIES! Never retreat, never surrender - only ATTACK! Ignore enemy bullets and chase your targets relentlessly!"),
+                new SystemChatMessage("You are a Space Invaders expert! CRITICAL: Always move TOWARD enemies, never away from them! Analyze the game state carefully and chase the enemies to destroy them!"),
                 new UserChatMessage(prompt)
             };
 
@@ -118,46 +118,50 @@ public class AoaiGameActionProvider
 
     private string CreateGameAnalysisPrompt(string gameState, string lastAction)
     {
-        return $@"You are an AGGRESSIVE SPACE HUNTER! Your only goal is to HUNT DOWN and DESTROY every enemy ship!
+        return $@"You are a SPACE INVADERS EXPERT! Your ONLY mission: DESTROY ALL ENEMIES!
 
-HUNTING MINDSET:
-- BE RELENTLESS! Chase enemies without fear!
-- IGNORE enemy bullets - focus ONLY on killing enemies!
-- NEVER retreat or hide - always advance and attack!
-- Move directly TOWARD enemies to get closer shots!
-- Shoot constantly while moving toward targets!
+CRITICAL RULES:
+1. ANALYZE WHERE ENEMIES ARE located in the game state
+2. MOVE TOWARD enemies to get closer to them
+3. SHOOT constantly while moving toward enemies
+4. NEVER move away from enemies - always chase them!
 
-GAME STATE: {gameState}
-Last action: '{lastAction}'
+GAME STATE ANALYSIS:
+{gameState}
+Last action: {lastAction}
 
-TARGETS TO HUNT:
-- 'A' = Your hunter ship (YOU)
-- '><', 'oo', '/O\\' = ENEMY TARGETS TO DESTROY! 
-- 'v' = Enemy bullets (IGNORE THESE - don't dodge!)
-- '^' = Your bullets
+GAME ELEMENTS:
+- 'A' = YOUR SHIP (this is you!)
+- '><' = ENEMY SHIP (destroy this!)
+- 'oo' = ENEMY SHIP (destroy this!)  
+- '/O\\' = ENEMY SHIP (destroy this!)
+- 'v' = Enemy bullet (ignore these)
+- '^' = Your bullet
 
-AGGRESSIVE TACTICS:
-1. If enemies are on LEFT side: Move LEFT and shoot to chase them!
-2. If enemies are on RIGHT side: Move RIGHT and shoot to hunt them down!
-3. If enemies are spread out: Move toward the CLOSEST enemy group!
-4. ALWAYS shoot when moving - never stop firing!
-5. Get as CLOSE as possible to enemies for guaranteed hits!
-6. NEVER stay in corners - always move toward enemies!
+MOVEMENT STRATEGY:
+- Look at the game state above
+- Find where the enemy ships ('><', 'oo', '/O\\') are positioned
+- If enemies appear to the LEFT of your ship 'A': Choose ""MoveLeft""
+- If enemies appear to the RIGHT of your ship 'A': Choose ""MoveRight""  
+- If enemies are directly above or below: Choose ""Shoot""
+- ALWAYS move TOWARD the enemies, NEVER away from them!
 
-PRIORITY ORDER:
-1st: SHOOT at enemies (most important!)
-2nd: MOVE toward enemies to get closer
-3rd: Keep hunting - never stop the attack!
+DECISION PROCESS:
+1. Locate your ship 'A' in the game state
+2. Locate enemy ships ('><', 'oo', '/O\\') in the game state  
+3. Determine which direction has MORE enemies
+4. Move in that direction to get closer to enemies
+5. Shoot while moving toward them
 
-Be a fearless space warrior! Hunt them down!
+EXAMPLES:
+- If game state shows enemies on left side: ""MoveLeft"" to chase them
+- If game state shows enemies on right side: ""MoveRight"" to chase them
+- Always explain which enemies you're chasing and why
 
-Actions: MoveLeft, MoveRight, Shoot
-Output JSON with 'action' and 'reasoning' fields.
+Be aggressive! Chase the enemies! Never retreat!
 
-Examples:
-{{ ""action"": ""MoveLeft"", ""reasoning"": ""Hunting enemies on the left - moving closer for the kill!"" }}
-{{ ""action"": ""Shoot"", ""reasoning"": ""Firing at enemy targets - destroy them all!"" }}
-{{ ""action"": ""MoveRight"", ""reasoning"": ""Chasing enemies to the right - no escape!"" }}";
+Output format: JSON with ""action"" and ""reasoning"" fields.
+Actions: MoveLeft, MoveRight, Shoot";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -425,45 +429,38 @@ Examples:
 
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // Simple heuristics based on text content
+        // Aggressive heuristics - prioritize movement toward enemies
         var lowerResponse = response.ToLower();
 
-        if (lowerResponse.Contains("left") || lowerResponse.Contains("move left"))
+        // Look for movement keywords
+        if (lowerResponse.Contains("left") || lowerResponse.Contains("moveleft") ||
+            lowerResponse.Contains("chase") && lowerResponse.Contains("left"))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveLeft,
-                Reasoning = "Heuristic: Response suggests moving left",
-                Confidence = 0.6f
+                Reasoning = "Heuristic: Moving left to chase enemies",
+                Confidence = 0.8f
             };
         }
 
-        if (lowerResponse.Contains("right") || lowerResponse.Contains("move right"))
+        if (lowerResponse.Contains("right") || lowerResponse.Contains("moveright") ||
+            lowerResponse.Contains("chase") && lowerResponse.Contains("right"))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveRight,
-                Reasoning = "Heuristic: Response suggests moving right",
-                Confidence = 0.6f
+                Reasoning = "Heuristic: Moving right to chase enemies",
+                Confidence = 0.8f
             };
         }
 
-        if (lowerResponse.Contains("shoot") || lowerResponse.Contains("fire"))
-        {
-            return new GameActionResult
-            {
-                Action = GameAction.Shoot,
-                Reasoning = "Heuristic: Response suggests shooting",
-                Confidence = 0.7f
-            };
-        }
-
-        // Default aggressive action
+        // Default to aggressive shooting
         return new GameActionResult
         {
             Action = GameAction.Shoot,
-            Reasoning = "Heuristic: Default aggressive shooting",
-            Confidence = 0.6f
+            Reasoning = "Heuristic: Aggressive shooting at enemies",
+            Confidence = 0.7f
         };
     }
 
