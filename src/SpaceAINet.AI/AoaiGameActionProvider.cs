@@ -74,8 +74,8 @@ public class AoaiGameActionProvider
 
             // Call the AI service with appropriate system message
             var systemMessage = _gameInitialized ?
-                "🔥 MOBILE Space Invaders champion! CHASE enemies and SHOOT! Move toward enemies, don't just camp! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"brief\"}." :
-                "⚔️ AGGRESSIVE MOBILE WARRIOR! CHASE and DESTROY! Move to hunt enemies! Respond with ONLY valid JSON: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"brief\"}.";
+                "적을 추적하고 공격하세요. JSON으로만 응답: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"간단한 이유\"}." :
+                "적을 추적하고 공격하세요. JSON으로만 응답: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"간단한 이유\"}.";
 
             var messages = new ChatMessage[]
             {
@@ -92,14 +92,14 @@ public class AoaiGameActionProvider
         }
         catch (Exception)
         {
-            // 🔥 BALANCED FALLBACK - MIX MOVEMENT AND SHOOTING! 🔥
+            // 간단한 대체 동작
             var fallbackActions = new[] { GameAction.MoveLeft, GameAction.MoveRight, GameAction.Shoot };
             var randomAction = fallbackActions[DateTime.Now.Millisecond % fallbackActions.Length];
 
             return new GameActionResult
             {
                 Action = randomAction,
-                Reasoning = "MOBILE FALLBACK: Stay active and hunt!",
+                Reasoning = "대체 동작: 적 추적",
                 Confidence = 0.7f
             };
         }
@@ -206,44 +206,31 @@ public class AoaiGameActionProvider
 
     private string CreateInitialGamePrompt(string gameState, string lastAction)
     {
-        return $@"🔥 AGGRESSIVE MOBILE WARRIOR! 🔥
+        return $@"간단한 규칙:
+1. 적 유닛 근처로 이동
+2. 적 유닛 근처에서 공격
 
-TACTICAL PRIORITIES:
-1. MOVE to chase enemies (><, oo, /O\) - They move, you must chase!
-2. SHOOT when aligned with enemies or when they're spread out
-3. Only dodge when enemy bullet 'v' is directly above you
+적이 왼쪽에 많으면 MoveLeft, 오른쪽에 많으면 MoveRight, 위치가 좋으면 Shoot
 
-MOVEMENT STRATEGY:
-- Enemies mostly on LEFT side? → MoveLeft to chase them!
-- Enemies mostly on RIGHT side? → MoveRight to chase them!  
-- Enemies spread evenly or directly above? → Shoot!
+현재 상황: {gameState}
+마지막 행동: {lastAction}
 
-Current situation: {gameState}
-Last action: {lastAction}
-
-BE MOBILE! Don't camp - CHASE the enemies!
-
-JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies""}}
-Actions: MoveLeft, MoveRight, Shoot";
+JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""적 추적""}}";
     }
 
     private string CreateOngoingGamePrompt(string gameState, string lastAction, string stateChange)
     {
-        return $@"⚔️ MOBILE HUNTER - CHASE AND DESTROY! ⚔️
+        return $@"규칙:
+1. 적 유닛 근처로 이동
+2. 적 유닛 근처에서 공격
 
-SMART AGGRESSION:
-- Enemies on LEFT side? → MoveLeft to get closer!
-- Enemies on RIGHT side? → MoveRight to get closer!
-- Enemy bullet 'v' above you? → Move to dodge then attack!
-- Enemies spread out or well-positioned? → Shoot!
+적이 왼쪽에 많으면 MoveLeft, 오른쪽에 많으면 MoveRight, 위치가 좋으면 Shoot
 
-Current Game: {gameState}
-Last Action: {lastAction}
-What Changed: {stateChange}
+현재: {gameState}
+마지막 행동: {lastAction}
+변화: {stateChange}
 
-BE AGGRESSIVE BUT MOBILE! Chase enemies, don't just camp!
-
-JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies left""}}";
+JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""적 추적""}}";
     }
 
     private GameActionResult ParseAIResponse(string response)
@@ -464,49 +451,37 @@ JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies left""}}";
 
     private GameActionResult AnalyzeWithHeuristics(string response)
     {
-        // 🔥 SMART AGGRESSIVE STRATEGY - CHASE AND SHOOT! 🔥
+        // 간단한 휴리스틱 전략
         var lowerResponse = response.ToLower();
 
-        // Look for movement keywords first - prioritize chasing!
+        // 이동 키워드 검색
         if (lowerResponse.Contains("moveleft") || lowerResponse.Contains("move left") ||
-            (lowerResponse.Contains("left") && (lowerResponse.Contains("chase") || lowerResponse.Contains("enemy"))))
+            (lowerResponse.Contains("left") && lowerResponse.Contains("적")))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveLeft,
-                Reasoning = "Heuristic: Chasing enemies to the left!",
+                Reasoning = "왼쪽으로 적 추적",
                 Confidence = 0.9f
             };
         }
 
         if (lowerResponse.Contains("moveright") || lowerResponse.Contains("move right") ||
-            (lowerResponse.Contains("right") && (lowerResponse.Contains("chase") || lowerResponse.Contains("enemy"))))
+            (lowerResponse.Contains("right") && lowerResponse.Contains("적")))
         {
             return new GameActionResult
             {
                 Action = GameAction.MoveRight,
-                Reasoning = "Heuristic: Chasing enemies to the right!",
+                Reasoning = "오른쪽으로 적 추적",
                 Confidence = 0.9f
             };
         }
 
-        if (lowerResponse.Contains("dodge"))
-        {
-            // Random dodge direction
-            var dodgeAction = DateTime.Now.Millisecond % 2 == 0 ? GameAction.MoveLeft : GameAction.MoveRight;
-            return new GameActionResult
-            {
-                Action = dodgeAction,
-                Reasoning = "Heuristic: Dodging enemy fire!",
-                Confidence = 0.8f
-            };
-        }
-
-        // Default to shooting, but with lower confidence to encourage movement
+        // 기본적으로 공격
         return new GameActionResult
         {
             Action = GameAction.Shoot,
-            Reasoning = "Heuristic: Shooting when position is good",
+            Reasoning = "적 공격",
             Confidence = 0.6f
         };
     }
