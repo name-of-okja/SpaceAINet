@@ -55,12 +55,16 @@ public class AoaiGameActionProvider
             _lastAction = lastAction;
 
             // Convert frame data to a more readable format for AI analysis
-            var gameState = ExtractGameStateFromFrame(frame2);
+            var currentGameState = ExtractGameStateFromFrame(frame2);
+            var previousGameState = frame1 != null ? ExtractGameStateFromFrame(frame1) : "";
+
+            // Analyze changes between frames
+            var stateChange = AnalyzeStateChange(previousGameState, currentGameState);
 
             // Create the prompt for AI analysis - different for first time vs ongoing
             var prompt = _gameInitialized ?
-                CreateOngoingGamePrompt(gameState, lastAction) :
-                CreateInitialGamePrompt(gameState, lastAction);
+                CreateOngoingGamePrompt(currentGameState, lastAction, stateChange) :
+                CreateInitialGamePrompt(currentGameState, lastAction);
 
             // Mark game as initialized after first call
             if (!_gameInitialized)
@@ -99,6 +103,72 @@ public class AoaiGameActionProvider
                 Confidence = 0.7f
             };
         }
+    }
+
+    private string AnalyzeStateChange(string previousState, string currentState)
+    {
+        if (string.IsNullOrEmpty(previousState))
+            return "Game started";
+
+        var changes = new List<string>();
+
+        // Analyze enemy movement
+        var prevEnemyCount = CountEnemies(previousState);
+        var currEnemyCount = CountEnemies(currentState);
+
+        if (currEnemyCount < prevEnemyCount)
+        {
+            changes.Add($"Enemy destroyed! ({prevEnemyCount}→{currEnemyCount})");
+        }
+        else if (currEnemyCount > prevEnemyCount)
+        {
+            changes.Add("New enemies appeared!");
+        }
+
+        // Analyze bullet activity
+        var prevBullets = CountBullets(previousState);
+        var currBullets = CountBullets(currentState);
+
+        if (currBullets.playerBullets > prevBullets.playerBullets)
+        {
+            changes.Add("You fired!");
+        }
+
+        if (currBullets.enemyBullets > prevBullets.enemyBullets)
+        {
+            changes.Add("Enemies fired!");
+        }
+
+        // Analyze player position change
+        var prevPlayerPos = FindPlayerPosition(previousState);
+        var currPlayerPos = FindPlayerPosition(currentState);
+
+        if (prevPlayerPos != currPlayerPos)
+        {
+            if (currPlayerPos > prevPlayerPos)
+                changes.Add("Moved right");
+            else
+                changes.Add("Moved left");
+        }
+
+        return changes.Count > 0 ? string.Join(", ", changes) : "No significant changes";
+    }
+
+    private int CountEnemies(string gameState)
+    {
+        return gameState.Count(c => c == '>' || c == '<' || c == 'o' || c == '/' || c == '\\' || c == 'O');
+    }
+
+    private (int playerBullets, int enemyBullets) CountBullets(string gameState)
+    {
+        var playerBullets = gameState.Count(c => c == '^');
+        var enemyBullets = gameState.Count(c => c == 'v');
+        return (playerBullets, enemyBullets);
+    }
+
+    private int FindPlayerPosition(string gameState)
+    {
+        return gameState.IndexOf('A');
     }
 
     private string ExtractGameStateFromFrame(byte[] frameData)
@@ -157,7 +227,7 @@ JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""chasing enemies""}}
 Actions: MoveLeft, MoveRight, Shoot";
     }
 
-    private string CreateOngoingGamePrompt(string gameState, string lastAction)
+    private string CreateOngoingGamePrompt(string gameState, string lastAction, string stateChange)
     {
         return $@"⚔️ MOBILE HUNTER - CHASE AND DESTROY! ⚔️
 
@@ -167,8 +237,9 @@ SMART AGGRESSION:
 - Enemy bullet 'v' above you? → Move to dodge then attack!
 - Enemies spread out or well-positioned? → Shoot!
 
-Game: {gameState}
-Last: {lastAction}
+Current Game: {gameState}
+Last Action: {lastAction}
+What Changed: {stateChange}
 
 BE AGGRESSIVE BUT MOBILE! Chase enemies, don't just camp!
 
