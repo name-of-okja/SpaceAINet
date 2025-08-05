@@ -30,6 +30,7 @@ public class GameManager
     private byte[]? _previousFrame;
     private string _lastAiAction = "None";
     private DateTime _lastAiActionTime = DateTime.Now;
+    private int _aiCallCount = 0;
 
     // Manual input fields for smooth movement
     private DateTime _lastKeyPressTime = DateTime.MinValue;
@@ -187,6 +188,9 @@ public class GameManager
             {
                 // Get AI decision
                 var actionResult = await _aiProvider.AnalyzeFrameAsync(_previousFrame, currentFrame, _lastAiAction);
+
+                // Increment AI call counter
+                _aiCallCount++;
 
                 // Execute the AI action
                 ExecuteAIAction(actionResult);
@@ -571,7 +575,7 @@ public class GameManager
             _ => "Unknown"
         };
 
-        string modeText = _aiMode ? "AI" : "Manual";
+        string modeText = _aiMode ? $"AI (Calls: {_aiCallCount})" : "Manual";
 
         string ui = $"Score: {_score:D4}   Time: {elapsedSeconds:D2}s   Bullets: {_player.CurrentBullets}/{_player.MaxBullets}   Speed: {speedText}   Mode: {modeText}";
 
