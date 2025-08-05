@@ -174,7 +174,8 @@ public class GameManager
         if (_aiProvider == null) return;
 
         // Only process AI input at regular intervals to avoid overwhelming the API
-        if (DateTime.Now - _lastAiActionTime < TimeSpan.FromMilliseconds(500))
+        // 3.5 seconds = ~17 requests per minute (budget-friendly)
+        if (DateTime.Now - _lastAiActionTime < TimeSpan.FromMilliseconds(3500))
             return;
 
         try
