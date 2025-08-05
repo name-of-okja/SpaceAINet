@@ -67,7 +67,7 @@ public class GameManager
 
                 // Test the connection
                 System.Console.WriteLine("Testing Azure OpenAI connection...");
-                var connectionTest = _aiProvider.TestConnectionAsync().GetAwaiter().GetResult();
+                var connectionTest = _aiProvider.TestConnection();
 
                 if (connectionTest)
                 {
@@ -170,7 +170,7 @@ public class GameManager
         }
     }
 
-    private async void HandleAIInput()
+    private void HandleAIInput()
     {
         if (_aiProvider == null) return;
 
@@ -186,7 +186,7 @@ public class GameManager
             if (_previousFrame != null)
             {
                 // Get AI decision
-                var actionResult = await _aiProvider.AnalyzeFrameAsync(_previousFrame, currentFrame, _lastAiAction);
+                var actionResult = _aiProvider.AnalyzeFrame(_previousFrame, currentFrame, _lastAiAction);
 
                 // Increment AI call counter
                 _aiCallCount++;

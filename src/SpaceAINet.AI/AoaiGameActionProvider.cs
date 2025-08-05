@@ -12,7 +12,6 @@ public class AoaiGameActionProvider
     private readonly ChatClient _chatClient;
     private readonly IConfiguration _configuration;
     private string _lastAction = "None";
-    private bool _gameInitialized = false;
 
     public AoaiGameActionProvider()
     {
@@ -48,7 +47,7 @@ public class AoaiGameActionProvider
         }
     }
 
-    public async Task<GameActionResult> AnalyzeFrameAsync(byte[] frame1, byte[] frame2, string lastAction)
+    public GameActionResult AnalyzeFrame(byte[] frame1, byte[] frame2, string lastAction)
     {
         try
         {
@@ -61,21 +60,11 @@ public class AoaiGameActionProvider
             // Analyze changes between frames
             var stateChange = AnalyzeStateChange(previousGameState, currentGameState);
 
-            // Create the prompt for AI analysis - different for first time vs ongoing
-            var prompt = _gameInitialized ?
-                CreateOngoingGamePrompt(currentGameState, lastAction, stateChange) :
-                CreateInitialGamePrompt(currentGameState, lastAction);
+            // Create the prompt for AI analysis
+            var prompt = CreateGamePrompt(currentGameState, lastAction, stateChange);
 
-            // Mark game as initialized after first call
-            if (!_gameInitialized)
-            {
-                _gameInitialized = true;
-            }
-
-            // Call the AI service with appropriate system message
-            var systemMessage = _gameInitialized ?
-                "적을 추적하고 공격하세요. JSON으로만 응답: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"간단한 이유\"}." :
-                "적을 추적하고 공격하세요. JSON으로만 응답: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"간단한 이유\"}.";
+            // Call the AI service
+            var systemMessage = "적을 추적하고 공격하세요. JSON으로만 응답: {\"action\": \"MoveLeft|MoveRight|Shoot\", \"reasoning\": \"간단한 이유\"}.";
 
             var messages = new ChatMessage[]
             {
@@ -83,7 +72,7 @@ public class AoaiGameActionProvider
                 new UserChatMessage(prompt)
             };
 
-            var response = await _chatClient.CompleteChatAsync(messages);
+            var response = _chatClient.CompleteChat(messages);
 
             var responseText = response.Value.Content[0].Text ?? "";
 
@@ -204,21 +193,7 @@ public class AoaiGameActionProvider
         }
     }
 
-    private string CreateInitialGamePrompt(string gameState, string lastAction)
-    {
-        return $@"간단한 규칙:
-1. 적 유닛 근처로 이동
-2. 적 유닛 근처에서 공격
-
-적이 왼쪽에 많으면 MoveLeft, 오른쪽에 많으면 MoveRight, 위치가 좋으면 Shoot
-
-현재 상황: {gameState}
-마지막 행동: {lastAction}
-
-JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""적 추적""}}";
-    }
-
-    private string CreateOngoingGamePrompt(string gameState, string lastAction, string stateChange)
+    private string CreateGamePrompt(string gameState, string lastAction, string stateChange)
     {
         return $@"규칙:
 1. 적 유닛 근처로 이동
@@ -489,7 +464,7 @@ JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""적 추적""}}";
     /// <summary>
     /// Tests if the Azure OpenAI connection is working properly
     /// </summary>
-    public async Task<bool> TestConnectionAsync()
+    public bool TestConnection()
     {
         try
         {
@@ -499,7 +474,7 @@ JSON: {{""action"": ""MoveLeft"", ""reasoning"": ""적 추적""}}";
                 new UserChatMessage("Respond with exactly: TEST_OK")
             };
 
-            var response = await _chatClient.CompleteChatAsync(messages);
+            var response = _chatClient.CompleteChat(messages);
             var content = response.Value.Content[0].Text ?? "";
             return content.Contains("TEST_OK");
         }
